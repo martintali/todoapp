@@ -10,3 +10,13 @@
 | and give it the controller to call when that URI is requested.
 |
 */
+
+Route::get('/', 'Task\TasksController@getAll');
+
+Route::group(['prefix' => '/task'], function() {
+    Route::post('/', 'Task\TasksController@createTask');
+
+    Route::put('{id}', 'Task\TasksController@updateTask');
+
+    Route::delete('{id}', 'Task\TasksController@deleteTask');
+});
