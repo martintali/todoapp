@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use League\Fractal\Manager;
 use League\Fractal\Resource\Collection;
+use League\Fractal\Resource\Item;
 use League\Fractal\Serializer\JsonApiSerializer;
 
 class TasksController extends Controller
@@ -39,13 +40,24 @@ class TasksController extends Controller
             return response($jsonApiValidator->getErrors(), 409);
         }
 
-        json_api()->resolver('tasks', function (array $data) {
+        $result = json_api()->resolver('tasks', function (array $data) {
             $task = new Task;
             $task->name = $data['name'];
             $task->save();
+
+            return $task;
         })->parse($request->json()->all());
 
-        return response('', 201);
+        $manager = new Manager();
+        $manager->setSerializer(new JsonApiSerializer());
+        
+        $createdTask = $result['tasks'];
+
+        Log::info(print_r($createdTask, true));
+
+        $resources = new Item($createdTask, new TaskTransformer(), 'task');
+
+        return response($manager->createData($resources)->toArray(), 201);
     }
 
     public function updateTask($id, Request $request) {
