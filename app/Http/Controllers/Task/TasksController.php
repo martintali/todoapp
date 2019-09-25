@@ -53,8 +53,6 @@ class TasksController extends Controller
         
         $createdTask = $result['tasks'];
 
-        Log::info(print_r($createdTask, true));
-
         $resources = new Item($createdTask, new TaskTransformer(), 'task');
 
         return response($manager->createData($resources)->toArray(), 201);
