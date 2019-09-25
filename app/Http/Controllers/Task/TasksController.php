@@ -4,58 +4,77 @@ namespace App\Http\Controllers\Task;
 
 use App\Http\Controllers\Controller;
 use App\Task;
+use App\Transformers\TaskTransformer;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
+use League\Fractal\Manager;
+use League\Fractal\Resource\Collection;
+use League\Fractal\Serializer\JsonApiSerializer;
 
 class TasksController extends Controller
 {
     public function getAll() {
+        $manager = new Manager();
+        $manager->setSerializer(new JsonApiSerializer());
+
         $tasks = Task::orderBy('created_at', 'asc')->get();
     
-        return response()->json($tasks);
+        $resources = new Collection($tasks, new TaskTransformer(), 'task');
+
+        return $manager->createData($resources)->toArray();
     }
 
     public function createTask(Request $request) {
-        $validator = Validator::make($request->all(), [
-            'name' => 'required|max:255',
-        ]);
+        $jsonApiValidator = app(\Drp\JsonApiParser\JsonApiValidator::class);
+        $jsonApiValidator = $jsonApiValidator->validator(
+            'tasks',
+            \Drp\LaravelJsonApiParser\Validation\Validator::make(
+                ['name' => 'required'],
+                ['name.required' => 'You must provide a name']
+            )
+        );
 
-        if ($validator->fails()) {
-            return redirect('api/v1')
-                ->withInput()
-                ->withErrors($validator);
+        if (count($jsonApiValidator->getErrors()) > 0) {
+            return response($jsonApiValidator->getErrors(), 409);
         }
 
-        $task = new Task;
-        $task->name = $request->name;
-        $task->save();
+        json_api()->resolver('tasks', function (array $data) {
+            $task = new Task;
+            $task->name = $data['name'];
+            $task->save();
+        })->parse($request->json()->all());
 
-        return redirect('api/v1');
+        return response('', 201);
     }
 
     public function updateTask($id, Request $request) {
-        $validator = Validator::make($request->all(), [
-            'name' => 'required|max:255',
-            'completed' => 'boolean'
-        ]);
+        $jsonApiValidator = app(\Drp\JsonApiParser\JsonApiValidator::class);
+        $jsonApiValidator = $jsonApiValidator->validator(
+            'tasks',
+            \Drp\LaravelJsonApiParser\Validation\Validator::make(
+                ['name' => 'required'],
+                ['name.required' => 'You must provide a name']
+            )
+        );
 
-        if ($validator->fails()) {
-            return redirect('api/v1')
-                ->withInput()
-                ->withErrors($validator);
+        if (count($jsonApiValidator->getErrors()) > 0) {
+            return response($jsonApiValidator->getErrors(), 409);
         }
 
-        $task = Task::findOrFail($id);
-        $task->name = $request->name;
-        $task->completed = $request->completed;
-        $task->save();
+        json_api()->resolver('tasks', function (array $data) use ($id){
+            $task = Task::findOrFail($id);
+            $task->name = $data['name'];
+            $task->completed = $data['completed'];
+            $task->save();
+        })->parse($request->json()->all());
 
-        return redirect('api/v1');
+        return response('', 204);
     }
 
     public function deleteTask($id) {
         Task::findOrFail($id)->delete();
 
-        return redirect('api/v1');
+        return response('', 204);
     }
 }

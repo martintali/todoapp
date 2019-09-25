@@ -11,12 +11,12 @@
 |
 */
 
-Route::get('/', 'Task\TasksController@getAll');
+Route::group(['prefix' => '/tasks'], function() {
+    Route::get('/', 'Task\TasksController@getAll');
 
-Route::group(['prefix' => '/task'], function() {
     Route::post('/', 'Task\TasksController@createTask');
 
-    Route::put('{id}', 'Task\TasksController@updateTask');
+    Route::patch('{id}', 'Task\TasksController@updateTask');
 
     Route::delete('{id}', 'Task\TasksController@deleteTask');
 });
