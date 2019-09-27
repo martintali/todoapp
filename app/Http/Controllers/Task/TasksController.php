@@ -12,6 +12,7 @@ use League\Fractal\Manager;
 use League\Fractal\Resource\Collection;
 use League\Fractal\Resource\Item;
 use League\Fractal\Serializer\JsonApiSerializer;
+use Drp\JsonApiParser\Exceptions\FailedValidationException;
 
 class TasksController extends Controller
 {
@@ -27,59 +28,63 @@ class TasksController extends Controller
     }
 
     public function createTask(Request $request) {
-        $jsonApiValidator = app(\Drp\JsonApiParser\JsonApiValidator::class);
-        $jsonApiValidator = $jsonApiValidator->validator(
-            'tasks',
-            \Drp\LaravelJsonApiParser\Validation\Validator::make(
-                ['name' => 'required'],
-                ['name.required' => 'You must provide a name']
-            )
-        );
+        try {
+            $jsonApiValidator = app(\Drp\JsonApiParser\JsonApiValidator::class);
+            $jsonApiValidator = $jsonApiValidator->validator(
+                'tasks',
+                \Drp\LaravelJsonApiParser\Validation\Validator::make(
+                    ['name' => 'required'],
+                    ['name.required' => 'You must provide a name']
+                )
+            );
 
-        if (count($jsonApiValidator->getErrors()) > 0) {
-            return response($jsonApiValidator->getErrors(), 409);
+            $jsonApiValidator->validate($request->json()->all());
+
+            $result = json_api()->resolver('tasks', function (array $data) {
+                $task = new Task;
+                $task->name = $data['name'];
+                $task->save();
+
+                return $task;
+            })->parse($request->json()->all());
+
+            $manager = new Manager();
+            $manager->setSerializer(new JsonApiSerializer());
+            
+            $createdTask = $result['tasks'];
+
+            $resources = new Item($createdTask, new TaskTransformer(), 'task');
+
+            return response($manager->createData($resources)->toArray(), 201);
+        } catch(FailedValidationException $ex) {
+            return response($ex->getMessages(), 409);
         }
-
-        $result = json_api()->resolver('tasks', function (array $data) {
-            $task = new Task;
-            $task->name = $data['name'];
-            $task->save();
-
-            return $task;
-        })->parse($request->json()->all());
-
-        $manager = new Manager();
-        $manager->setSerializer(new JsonApiSerializer());
-        
-        $createdTask = $result['tasks'];
-
-        $resources = new Item($createdTask, new TaskTransformer(), 'task');
-
-        return response($manager->createData($resources)->toArray(), 201);
     }
 
     public function updateTask($id, Request $request) {
-        $jsonApiValidator = app(\Drp\JsonApiParser\JsonApiValidator::class);
-        $jsonApiValidator = $jsonApiValidator->validator(
-            'tasks',
-            \Drp\LaravelJsonApiParser\Validation\Validator::make(
-                ['name' => 'required'],
-                ['name.required' => 'You must provide a name']
-            )
-        );
+        try {
+            $jsonApiValidator = app(\Drp\JsonApiParser\JsonApiValidator::class);
+            $jsonApiValidator = $jsonApiValidator->validator(
+                'tasks',
+                \Drp\LaravelJsonApiParser\Validation\Validator::make(
+                    ['name' => 'required'],
+                    ['name.required' => 'You must provide a name']
+                )
+            );
 
-        if (count($jsonApiValidator->getErrors()) > 0) {
-            return response($jsonApiValidator->getErrors(), 409);
+            $jsonApiValidator->validate($request->json()->all());
+
+            json_api()->resolver('tasks', function (array $data) use ($id){
+                $task = Task::findOrFail($id);
+                $task->name = $data['name'];
+                $task->completed = $data['completed'];
+                $task->save();
+            })->parse($request->json()->all());
+
+            return response('', 204);
+        } catch(FailedValidationException $ex) {
+            return response($ex->getMessages(), 409);
         }
-
-        json_api()->resolver('tasks', function (array $data) use ($id){
-            $task = Task::findOrFail($id);
-            $task->name = $data['name'];
-            $task->completed = $data['completed'];
-            $task->save();
-        })->parse($request->json()->all());
-
-        return response('', 204);
     }
 
     public function deleteTask($id) {
